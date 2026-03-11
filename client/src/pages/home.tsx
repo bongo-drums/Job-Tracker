@@ -4,8 +4,16 @@ import type { Prospect } from "@shared/schema";
 import { STATUSES } from "@shared/schema";
 import { ProspectCard } from "@/components/prospect-card";
 import { AddProspectForm } from "@/components/add-prospect-form";
-import { Briefcase, Plus } from "lucide-react";
+import { Briefcase, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -75,20 +83,40 @@ function KanbanColumn({
 
 export default function Home() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [interestFilter, setInterestFilter] = useState("all");
 
   const { data: prospects, isLoading } = useQuery<Prospect[]>({
     queryKey: ["/api/prospects"],
   });
 
+  const filteredProspects = (prospects ?? []).filter((p) => {
+    const matchesSearch =
+      search.trim() === "" ||
+      p.companyName.toLowerCase().includes(search.toLowerCase()) ||
+      p.roleTitle.toLowerCase().includes(search.toLowerCase());
+
+    const matchesInterest =
+      interestFilter === "all" || p.interestLevel === interestFilter;
+
+    return matchesSearch && matchesInterest;
+  });
+
   const groupedByStatus = STATUSES.reduce(
     (acc, status) => {
-      acc[status] = (prospects ?? []).filter((p) => p.status === status);
+      acc[status] = filteredProspects.filter((p) => p.status === status);
       return acc;
     },
     {} as Record<string, Prospect[]>,
   );
 
   const totalCount = prospects?.length ?? 0;
+  const isFiltering = search.trim() !== "" || interestFilter !== "all";
+
+  const clearFilters = () => {
+    setSearch("");
+    setInterestFilter("all");
+  };
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -122,6 +150,44 @@ export default function Home() {
                 <AddProspectForm onSuccess={() => setDialogOpen(false)} />
               </DialogContent>
             </Dialog>
+          </div>
+
+          <div className="flex items-center gap-2 mt-3" data-testid="filter-bar">
+            <div className="relative flex-1 max-w-xs">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Search company or role…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 h-8 text-sm"
+                data-testid="input-search"
+              />
+            </div>
+
+            <Select value={interestFilter} onValueChange={setInterestFilter}>
+              <SelectTrigger className="h-8 w-36 text-sm" data-testid="select-interest-filter">
+                <SelectValue placeholder="Interest level" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All interest</SelectItem>
+                <SelectItem value="High">High</SelectItem>
+                <SelectItem value="Medium">Medium</SelectItem>
+                <SelectItem value="Low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {isFiltering && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs text-muted-foreground"
+                onClick={clearFilters}
+                data-testid="button-clear-filters"
+              >
+                <X className="w-3.5 h-3.5 mr-1" />
+                Clear
+              </Button>
+            )}
           </div>
         </div>
       </header>
